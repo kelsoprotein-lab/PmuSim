@@ -9,20 +9,21 @@ class StationListPanel(tk.Frame):
     """Shows connected substations and action buttons."""
 
     def __init__(self, parent, on_action):
-        super().__init__(parent, width=220, bg='#dcdad5')
+        super().__init__(parent, width=220, bg='#e8e8e8')
         self.pack_propagate(False)
         self._on_action = on_action
         self._stations: dict[str, dict] = {}  # idcode -> {state, peer_ip}
 
         # Station list
-        ttk.Label(self, text="\u5b50\u7ad9\u5217\u8868", font=("", 10, "bold")).pack(pady=(5, 2))
+        tk.Label(self, text="\u5b50\u7ad9\u5217\u8868", font=("", 10, "bold"),
+                 bg='#e8e8e8', fg='#000000').pack(pady=(5, 2))
         self.listbox = tk.Listbox(self, width=25, height=12, exportselection=False)
         self.listbox.pack(fill=tk.X, padx=5, pady=2)
         self.listbox.bind("<<ListboxSelect>>", self._on_select)
 
         # State label
         self.state_var = tk.StringVar(value="")
-        ttk.Label(self, textvariable=self.state_var, foreground="gray").pack(pady=2)
+        tk.Label(self, textvariable=self.state_var, fg="gray", bg='#e8e8e8').pack(pady=2)
 
         # Action buttons
         btn_frame = ttk.LabelFrame(self, text="\u64cd\u4f5c")

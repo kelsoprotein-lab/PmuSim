@@ -14,13 +14,54 @@ from ui.config_panel import ConfigPanel
 from ui.data_panel import DataPanel
 from ui.log_panel import LogPanel
 
+# Light color palette forced on all widgets
+BG = '#e8e8e8'
+FG = '#000000'
+ENTRY_BG = '#ffffff'
+SELECT_BG = '#0078d7'
+SELECT_FG = '#ffffff'
+
+
+def _force_light_theme(root):
+    """Force light colors on macOS dark mode + Tk 8.5."""
+    # tk option database (affects all tk.* widgets)
+    root.option_add('*Background', BG)
+    root.option_add('*Foreground', FG)
+    root.option_add('*selectBackground', SELECT_BG)
+    root.option_add('*selectForeground', SELECT_FG)
+    root.option_add('*Entry.Background', ENTRY_BG)
+    root.option_add('*Listbox.Background', ENTRY_BG)
+    root.option_add('*Text.Background', ENTRY_BG)
+    root.configure(bg=BG)
+
+    # ttk style (affects all ttk.* widgets)
+    style = ttk.Style()
+    style.theme_use('clam')
+    style.configure('.', background=BG, foreground=FG, fieldbackground=ENTRY_BG)
+    style.configure('TFrame', background=BG)
+    style.configure('TLabel', background=BG, foreground=FG)
+    style.configure('TButton', background='#d0d0d0', foreground=FG)
+    style.map('TButton', background=[('active', '#c0c0c0')])
+    style.configure('TLabelframe', background=BG, foreground=FG)
+    style.configure('TLabelframe.Label', background=BG, foreground=FG)
+    style.configure('TEntry', fieldbackground=ENTRY_BG, foreground=FG)
+    style.configure('TCombobox', fieldbackground=ENTRY_BG, foreground=FG)
+    style.configure('TNotebook', background=BG)
+    style.configure('TNotebook.Tab', background='#d0d0d0', foreground=FG, padding=[8, 2])
+    style.map('TNotebook.Tab', background=[('selected', BG)])
+    style.configure('Treeview', background=ENTRY_BG, foreground=FG,
+                    fieldbackground=ENTRY_BG)
+    style.configure('Treeview.Heading', background='#d0d0d0', foreground=FG)
+    style.configure('TSeparator', background='#c0c0c0')
+    style.configure('TScrollbar', background='#d0d0d0')
+
 
 class App:
     """Main PmuSim application."""
 
     def __init__(self):
         self.root = tk.Tk()
-        ttk.Style().theme_use('clam')
+        _force_light_theme(self.root)
         self.root.title("PmuSim - PMU\u4e3b\u7ad9\u6a21\u62df\u5668")
         self.root.geometry("1100x700")
         self.root.minsize(900, 500)
@@ -39,7 +80,7 @@ class App:
         self.toolbar.pack(fill=tk.X, padx=5, pady=5)
 
         # Main content: left panel + right notebook
-        content = ttk.Frame(self.root)
+        content = tk.Frame(self.root, bg=BG)
         content.pack(fill=tk.BOTH, expand=True, padx=5, pady=(0, 5))
 
         # Left: station list + action buttons
@@ -50,7 +91,7 @@ class App:
         self.station_panel.listbox.bind("<<ListboxSelect>>", self._on_station_selected)
 
         # Right: notebook with tabs
-        right_frame = ttk.Frame(content)
+        right_frame = tk.Frame(content, bg=BG)
         right_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(5, 0))
 
         self.notebook = ttk.Notebook(right_frame)
@@ -67,7 +108,8 @@ class App:
 
         # Status bar
         self.status_var = tk.StringVar(value="\u5c31\u7eea")
-        status_bar = ttk.Label(self.root, textvariable=self.status_var, relief=tk.SUNKEN)
+        status_bar = tk.Label(self.root, textvariable=self.status_var, relief=tk.SUNKEN,
+                              bg='#d8d8d8', fg=FG, anchor=tk.W, padx=5)
         status_bar.pack(fill=tk.X, padx=5, pady=(0, 5))
 
     def _start_server(self, mgmt_port: int, data_port: int):
@@ -130,7 +172,6 @@ class App:
         if idcode and self.master_station:
             session = self.master_station.sessions.get(idcode)
             if session:
-                # Show the latest config (prefer CFG-2 over CFG-1)
                 cfg = session.cfg2 or session.cfg1
                 self.config_panel.show_config(cfg)
                 if cfg:
@@ -198,7 +239,7 @@ class App:
             )
 
         elif event_type == "heartbeat_recv":
-            pass  # Silent
+            pass
 
         elif event_type == "heartbeat_timeout":
             self.station_panel.update_station_state(idcode, "\u5fc3\u8df3\u8d85\u65f6")
