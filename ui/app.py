@@ -38,19 +38,19 @@ class App:
         self.toolbar.pack(fill=tk.X, padx=5, pady=5)
 
         # Main content: left panel + right notebook
-        paned = ttk.PanedWindow(self.root, orient=tk.HORIZONTAL)
-        paned.pack(fill=tk.BOTH, expand=True, padx=5, pady=(0, 5))
+        content = ttk.Frame(self.root)
+        content.pack(fill=tk.BOTH, expand=True, padx=5, pady=(0, 5))
 
         # Left: station list + action buttons
-        self.station_panel = StationListPanel(paned, on_action=self._on_station_action)
-        paned.add(self.station_panel, weight=0)
+        self.station_panel = StationListPanel(content, on_action=self._on_station_action)
+        self.station_panel.pack(side=tk.LEFT, fill=tk.Y)
 
         # Bind station selection to update config/data panels
         self.station_panel.listbox.bind("<<ListboxSelect>>", self._on_station_selected)
 
         # Right: notebook with tabs
-        right_frame = ttk.Frame(paned)
-        paned.add(right_frame, weight=1)
+        right_frame = ttk.Frame(content)
+        right_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(5, 0))
 
         self.notebook = ttk.Notebook(right_frame)
         self.notebook.pack(fill=tk.BOTH, expand=True)

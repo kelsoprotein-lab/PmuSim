@@ -14,9 +14,16 @@ class LogPanel(ttk.Frame):
         self._build()
 
     def _build(self):
-        # Log tree
+        # Hex detail at bottom (pack first so it stays at bottom)
+        self.hex_text = tk.Text(self, height=4, state=tk.DISABLED, font=("Courier", 10))
+        self.hex_text.pack(side=tk.BOTTOM, fill=tk.X, padx=2, pady=2)
+
+        # Log tree with scrollbar
+        tree_frame = ttk.Frame(self)
+        tree_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+
         cols = ("\u65f6\u95f4", "\u5b50\u7ad9", "\u65b9\u5411", "\u5e27\u7c7b\u578b", "\u6458\u8981")
-        self.tree = ttk.Treeview(self, columns=cols, show="headings", height=20)
+        self.tree = ttk.Treeview(tree_frame, columns=cols, show="headings", height=20)
         for col in cols:
             self.tree.heading(col, text=col)
         self.tree.column("\u65f6\u95f4", width=100)
@@ -25,14 +32,10 @@ class LogPanel(ttk.Frame):
         self.tree.column("\u5e27\u7c7b\u578b", width=80)
         self.tree.column("\u6458\u8981", width=300)
 
-        vsb = ttk.Scrollbar(self, orient=tk.VERTICAL, command=self.tree.yview)
+        vsb = ttk.Scrollbar(tree_frame, orient=tk.VERTICAL, command=self.tree.yview)
         self.tree.configure(yscrollcommand=vsb.set)
         self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         vsb.pack(side=tk.RIGHT, fill=tk.Y)
-
-        # Hex detail at bottom
-        self.hex_text = tk.Text(self, height=4, state=tk.DISABLED, font=("Courier", 10))
-        self.hex_text.pack(fill=tk.X, padx=2, pady=2)
 
         self.tree.bind("<<TreeviewSelect>>", self._on_select)
         self._raw_data: dict[str, bytes] = {}  # tree item id -> raw bytes
