@@ -235,11 +235,11 @@ class MasterStation:
                 self._emit("nack_recv", idcode=session.idcode)
 
         elif isinstance(frame, ConfigFrame):
-            if frame.cfg_type == 1:
+            if frame.cfg_type == int(FrameType.CFG1):
                 session.cfg1 = frame
                 session.state = SessionState.CFG1_RECEIVED
                 self._emit("cfg1_received", idcode=session.idcode, cfg=frame)
-            elif frame.cfg_type == 2:
+            elif frame.cfg_type == int(FrameType.CFG2):
                 session.cfg2 = frame
                 self._emit("cfg2_received", idcode=session.idcode, cfg=frame)
 
