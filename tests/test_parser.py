@@ -1,5 +1,6 @@
 import unittest
 from protocol.parser import FrameParser, ParseError
+from protocol.frames import DataFrame, ConfigFrame
 
 
 class TestParseCommandFrame(unittest.TestCase):
@@ -79,6 +80,42 @@ class TestParseCommandFrame(unittest.TestCase):
         data = bytes.fromhex("aa4200")
         with self.assertRaises(ParseError):
             FrameParser.parse(data)
+
+
+class TestParseDataFrame(unittest.TestCase):
+    def test_v2_data_frame(self):
+        data = bytes.fromhex(
+            "aa02002c" "67a99d11" "000d9490" "0000" "0000" "0000"
+            "012c0bb823d700c80000000000000000" "23d700000000" "000a" "21f3"
+        )
+        frame = FrameParser.parse(data, phnmr=0, annmr=11, dgnmr=1)
+        self.assertIsInstance(frame, DataFrame)
+        self.assertEqual(frame.version, 2)
+        self.assertEqual(frame.idcode, "")
+        self.assertEqual(frame.soc, 0x67A99D11)
+        self.assertEqual(frame.fracsec, 0x000D9490)
+        self.assertEqual(frame.stat, 0x0000)
+        self.assertEqual(len(frame.analog), 11)
+        self.assertEqual(frame.analog[0], 0x012C)
+        self.assertEqual(frame.analog[1], 0x0BB8)
+        self.assertEqual(frame.analog[2], 0x23D7)
+        self.assertEqual(len(frame.digital), 1)
+        self.assertEqual(frame.digital[0], 0x000A)
+
+    def test_v3_data_frame(self):
+        data = bytes.fromhex(
+            "aa030034" "3047583030475031" "67b2c71d" "00000000"
+            "0000" "0000" "0000"
+            "0190012c23e10000000000000000000023e100000000" "000a" "e884"
+        )
+        frame = FrameParser.parse(data, phnmr=0, annmr=11, dgnmr=1)
+        self.assertIsInstance(frame, DataFrame)
+        self.assertEqual(frame.version, 3)
+        self.assertEqual(frame.idcode, "0GX00GP1")
+        self.assertEqual(frame.soc, 0x67B2C71D)
+        self.assertEqual(len(frame.analog), 11)
+        self.assertEqual(frame.analog[0], 0x0190)
+        self.assertEqual(frame.digital[0], 0x000A)
 
 
 if __name__ == "__main__":
