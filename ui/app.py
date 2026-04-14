@@ -20,6 +20,7 @@ class App:
 
     def __init__(self):
         self.root = tk.Tk()
+        ttk.Style().theme_use('clam')
         self.root.title("PmuSim - PMU\u4e3b\u7ad9\u6a21\u62df\u5668")
         self.root.geometry("1100x700")
         self.root.minsize(900, 500)

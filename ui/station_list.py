@@ -5,11 +5,11 @@ from tkinter import ttk
 from typing import Optional
 
 
-class StationListPanel(ttk.Frame):
+class StationListPanel(tk.Frame):
     """Shows connected substations and action buttons."""
 
     def __init__(self, parent, on_action):
-        super().__init__(parent, width=220)
+        super().__init__(parent, width=220, bg='#dcdad5')
         self.pack_propagate(False)
         self._on_action = on_action
         self._stations: dict[str, dict] = {}  # idcode -> {state, peer_ip}
