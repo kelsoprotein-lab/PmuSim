@@ -1,0 +1,86 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            os_name: macos-arm64
+            asset_ext: .tar.gz
+          - platform: macos-13
+            os_name: macos-x64
+            asset_ext: .tar.gz
+          - platform: ubuntu-22.04
+            os_name: linux-x64
+            asset_ext: .tar.gz
+          - platform: windows-latest
+            os_name: windows-x64
+            asset_ext: .zip
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install PyInstaller
+        run: pip install pyinstaller
+
+      - name: Build executable
+        run: |
+          pyinstaller --noconfirm --onefile --windowed \
+            --name PmuSim \
+            --add-data "protocol:protocol" \
+            --add-data "network:network" \
+            --add-data "ui:ui" \
+            --add-data "utils:utils" \
+            --hidden-import tkinter \
+            --hidden-import tkinter.ttk \
+            main.py
+
+      - name: Package (Unix)
+        if: matrix.os_name != 'windows-x64'
+        run: |
+          cd dist
+          tar czf PmuSim-${{ matrix.os_name }}.tar.gz PmuSim*
+          ls -la
+
+      - name: Package (Windows)
+        if: matrix.os_name == 'windows-x64'
+        shell: pwsh
+        run: |
+          cd dist
+          Compress-Archive -Path PmuSim.exe -DestinationPath PmuSim-${{ matrix.os_name }}.zip
+          dir
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/PmuSim-${{ matrix.os_name }}${{ matrix.asset_ext }}
+          body: |
+            ## Downloads
+
+            **PmuSim** — PMU 主站模拟器 / PMU Master Station Simulator
+
+            | Platform | Download |
+            |----------|----------|
+            | macOS (Apple Silicon) | `PmuSim-macos-arm64.tar.gz` |
+            | macOS (Intel) | `PmuSim-macos-x64.tar.gz` |
+            | Linux (x64) | `PmuSim-linux-x64.tar.gz` |
+            | Windows (x64) | `PmuSim-windows-x64.zip` |
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

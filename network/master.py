@@ -71,7 +71,7 @@ class MasterStation:
 
     # --- Outbound management connection (master → substation) ---
 
-    async def connect_to_substation(self, host: str, mgmt_port: int):
+    async def connect_to_substation(self, host: str, mgmt_port: int, version: int = 3):
         """Connect to a substation's management port (master is TCP client)."""
         try:
             reader, writer = await asyncio.open_connection(host, mgmt_port)
@@ -83,7 +83,7 @@ class MasterStation:
         # Use temporary idcode until first frame reveals real one
         tmp_id = f"{host}:{mgmt_port}"
         session = SubStationSession(
-            idcode=tmp_id, version=0, peer_ip=host,
+            idcode=tmp_id, version=version, peer_ip=host,
             peer_host=host, peer_mgmt_port=mgmt_port,
         )
         session.mgmt_reader = reader
@@ -323,7 +323,8 @@ class MasterStation:
             if cmd_type == "connect":
                 host = kwargs.get("host", "")
                 port = kwargs.get("port", 7000)
-                await self.connect_to_substation(host, port)
+                version = kwargs.get("version", 3)
+                await self.connect_to_substation(host, port, version)
             elif cmd_type == "request_cfg1" and session:
                 await self._send_command(session, Cmd.SEND_CFG1)
             elif cmd_type == "send_cfg2_cmd" and session:

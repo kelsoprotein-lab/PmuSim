@@ -82,7 +82,8 @@ class App:
 
     def _build_ui(self):
         # Toolbar
-        self.toolbar = Toolbar(self.root, on_start=self._start_server, on_stop=self._stop_server)
+        self.toolbar = Toolbar(self.root, on_start=self._start_server, on_stop=self._stop_server,
+                               on_protocol_change=self._on_protocol_change)
         self.toolbar.pack(fill=tk.X, padx=5, pady=5)
 
         # Main content: left panel + right notebook
@@ -173,7 +174,12 @@ class App:
         elif action == "connect":
             host = kwargs.get("host", "")
             port = kwargs.get("port", 8000)
-            self.master_station.send_command("connect", host=host, port=port)
+            version = 3 if self.toolbar.get_protocol() == "V3" else 2
+            self.master_station.send_command("connect", host=host, port=port, version=version)
+
+    def _on_protocol_change(self, version_str: str):
+        """Sync management port default when protocol version changes."""
+        self.station_panel.set_protocol(version_str)
 
     def _on_station_selected(self, _event=None):
         """When user selects a station, update config and data panels."""

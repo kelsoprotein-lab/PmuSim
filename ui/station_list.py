@@ -74,6 +74,13 @@ class StationListPanel(tk.Frame):
         ttk.Button(btn_frame, text="\u4e00\u952e\u63e1\u624b",
                    command=lambda: self._do_action("auto_handshake")).pack(fill=tk.X, padx=5, pady=1)
 
+    def set_protocol(self, version_str: str):
+        """Update default management port based on protocol version."""
+        if version_str == "V2":
+            self.conn_port_var.set("7000")
+        else:
+            self.conn_port_var.set("8000")
+
     def add_station(self, idcode: str, peer_ip: str):
         if idcode not in self._stations:
             self._stations[idcode] = {"state": "\u5728\u7ebf", "peer_ip": peer_ip}
