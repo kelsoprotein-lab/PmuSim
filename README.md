@@ -11,7 +11,6 @@ Cross-platform PMU (Phasor Measurement Unit) master station simulator. Supports 
 | Platform | Download |
 |----------|----------|
 | macOS (Apple Silicon) | [PmuSim-macos-arm64.tar.gz](https://github.com/kelsoprotein-lab/PmuSim/releases/latest/download/PmuSim-macos-arm64.tar.gz) |
-| macOS (Intel) | [PmuSim-macos-x64.tar.gz](https://github.com/kelsoprotein-lab/PmuSim/releases/latest/download/PmuSim-macos-x64.tar.gz) |
 | Linux (x64) | [PmuSim-linux-x64.tar.gz](https://github.com/kelsoprotein-lab/PmuSim/releases/latest/download/PmuSim-linux-x64.tar.gz) |
 | Windows (x64) | [PmuSim-windows-x64.zip](https://github.com/kelsoprotein-lab/PmuSim/releases/latest/download/PmuSim-windows-x64.zip) |
 

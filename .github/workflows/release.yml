@@ -16,9 +16,6 @@ jobs:
           - platform: macos-latest
             os_name: macos-arm64
             asset_ext: .tar.gz
-          - platform: macos-13
-            os_name: macos-x64
-            asset_ext: .tar.gz
           - platform: ubuntu-22.04
             os_name: linux-x64
             asset_ext: .tar.gz
@@ -77,7 +74,6 @@ jobs:
             | Platform | Download |
             |----------|----------|
             | macOS (Apple Silicon) | `PmuSim-macos-arm64.tar.gz` |
-            | macOS (Intel) | `PmuSim-macos-x64.tar.gz` |
             | Linux (x64) | `PmuSim-linux-x64.tar.gz` |
             | Windows (x64) | `PmuSim-windows-x64.zip` |
           draft: false
