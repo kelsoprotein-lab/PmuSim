@@ -35,17 +35,32 @@ jobs:
       - name: Install PyInstaller
         run: pip install pyinstaller
 
-      - name: Build executable
-        run: |
-          pyinstaller --noconfirm --onefile --windowed \
-            --name PmuSim \
-            --add-data "protocol:protocol" \
-            --add-data "network:network" \
-            --add-data "ui:ui" \
-            --add-data "utils:utils" \
-            --hidden-import tkinter \
-            --hidden-import tkinter.ttk \
-            main.py
+      - name: Build executable (Unix)
+        if: runner.os != 'Windows'
+        run: >
+          pyinstaller --noconfirm --onefile --windowed
+          --name PmuSim
+          --add-data "protocol:protocol"
+          --add-data "network:network"
+          --add-data "ui:ui"
+          --add-data "utils:utils"
+          --hidden-import tkinter
+          --hidden-import tkinter.ttk
+          main.py
+
+      - name: Build executable (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: >
+          pyinstaller --noconfirm --onefile --windowed
+          --name PmuSim
+          --add-data "protocol;protocol"
+          --add-data "network;network"
+          --add-data "ui;ui"
+          --add-data "utils;utils"
+          --hidden-import tkinter
+          --hidden-import tkinter.ttk
+          main.py
 
       - name: Package (Unix)
         if: matrix.os_name != 'windows-x64'
