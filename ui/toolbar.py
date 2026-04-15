@@ -29,32 +29,25 @@ class Toolbar(ttk.Frame):
 
         ttk.Separator(self, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=5)
 
-        # Port config
-        ttk.Label(self, text="\u7ba1\u7406\u7aef\u53e3:").pack(side=tk.LEFT, padx=(5, 2))
-        self.mgmt_port_var = tk.StringVar(value="8000")
-        ttk.Entry(self, textvariable=self.mgmt_port_var, width=6).pack(side=tk.LEFT, padx=2)
-
+        # Port config (data pipe only — master listens for substation data connections)
         ttk.Label(self, text="\u6570\u636e\u7aef\u53e3:").pack(side=tk.LEFT, padx=(5, 2))
         self.data_port_var = tk.StringVar(value="8001")
         ttk.Entry(self, textvariable=self.data_port_var, width=6).pack(side=tk.LEFT, padx=2)
 
     def _on_protocol_change(self, _event=None):
         if self.protocol_var.get() == "V2":
-            self.mgmt_port_var.set("7000")
             self.data_port_var.set("7001")
         else:
-            self.mgmt_port_var.set("8000")
             self.data_port_var.set("8001")
 
     def _start(self):
         self.start_btn.config(state=tk.DISABLED)
         self.stop_btn.config(state=tk.NORMAL)
         try:
-            mgmt_port = int(self.mgmt_port_var.get())
             data_port = int(self.data_port_var.get())
         except ValueError:
-            mgmt_port, data_port = 8000, 8001
-        self._on_start(mgmt_port, data_port)
+            data_port = 8001
+        self._on_start(data_port)
 
     def _stop(self):
         self.start_btn.config(state=tk.NORMAL)

@@ -25,6 +25,25 @@ class StationListPanel(tk.Frame):
         self.state_var = tk.StringVar(value="")
         tk.Label(self, textvariable=self.state_var, fg="gray", bg='#e8e8e8').pack(pady=2)
 
+        # Connect substation
+        conn_frame = ttk.LabelFrame(self, text="\u8fde\u63a5\u5b50\u7ad9")
+        conn_frame.pack(fill=tk.X, padx=5, pady=5)
+
+        ip_row = ttk.Frame(conn_frame)
+        ip_row.pack(fill=tk.X, padx=5, pady=2)
+        ttk.Label(ip_row, text="IP:").pack(side=tk.LEFT)
+        self.conn_ip_var = tk.StringVar(value="127.0.0.1")
+        ttk.Entry(ip_row, textvariable=self.conn_ip_var, width=14).pack(side=tk.LEFT, padx=2)
+
+        port_row = ttk.Frame(conn_frame)
+        port_row.pack(fill=tk.X, padx=5, pady=2)
+        ttk.Label(port_row, text="\u7aef\u53e3:").pack(side=tk.LEFT)
+        self.conn_port_var = tk.StringVar(value="8000")
+        ttk.Entry(port_row, textvariable=self.conn_port_var, width=7).pack(side=tk.LEFT, padx=2)
+
+        ttk.Button(conn_frame, text="\u8fde\u63a5",
+                   command=self._do_connect).pack(fill=tk.X, padx=5, pady=2)
+
         # Action buttons
         btn_frame = ttk.LabelFrame(self, text="\u64cd\u4f5c")
         btn_frame.pack(fill=tk.X, padx=5, pady=5)
@@ -95,6 +114,14 @@ class StationListPanel(tk.Frame):
         idcode = self.get_selected()
         if idcode and idcode in self._stations:
             self.state_var.set(f"\u72b6\u6001: {self._stations[idcode]['state']}")
+
+    def _do_connect(self):
+        ip = self.conn_ip_var.get().strip()
+        try:
+            port = int(self.conn_port_var.get().strip())
+        except ValueError:
+            port = 8000
+        self._on_action("connect", "", host=ip, port=port)
 
     def _do_action(self, action: str):
         idcode = self.get_selected()

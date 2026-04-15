@@ -81,53 +81,78 @@ class TestE2ESmokeTest(unittest.IsolatedAsyncioTestCase):
         IDCODE = "TESTSUB1"
         event_q: queue.Queue = queue.Queue()
 
-        master = MasterStation(event_q, mgmt_port=0, data_port=0)
+        # ------------------------------------------------------------------
+        # Step 1: Start MasterStation (listens only for data connections)
+        # ------------------------------------------------------------------
+        master = MasterStation(event_q, data_port=0)
         await master.start()
+        data_port = master.data_port
 
-        # Retrieve auto-assigned ports
-        mgmt_port = master._mgmt_server.sockets[0].getsockname()[1]
-        data_port = master._data_server.sockets[0].getsockname()[1]
+        # ------------------------------------------------------------------
+        # Step 2: Start mock TCP server for management pipe (substation side)
+        # ------------------------------------------------------------------
+        mgmt_conn_event = asyncio.Event()
+        mgmt_reader_holder = {}
+        mgmt_writer_holder = {}
+        mgmt_done_event = asyncio.Event()
+
+        async def _mock_mgmt_handler(reader, writer):
+            mgmt_reader_holder['r'] = reader
+            mgmt_writer_holder['w'] = writer
+            mgmt_conn_event.set()
+            # Keep alive until test signals done
+            await mgmt_done_event.wait()
+
+        mock_mgmt_server = await asyncio.start_server(
+            _mock_mgmt_handler, "127.0.0.1", 0
+        )
+        mgmt_port = mock_mgmt_server.sockets[0].getsockname()[1]
 
         try:
             # ------------------------------------------------------------------
-            # Step 1: Mock substation connects management pipe
+            # Step 3: Master connects TO the mock substation's management port
             # ------------------------------------------------------------------
-            mgmt_reader, mgmt_writer = await asyncio.open_connection("127.0.0.1", mgmt_port)
+            await master.connect_to_substation("127.0.0.1", mgmt_port)
 
-            # Step 2: Send heartbeat to identify itself
+            # Wait for mock substation to accept the connection
+            await asyncio.wait_for(mgmt_conn_event.wait(), timeout=2)
+            mgmt_reader = mgmt_reader_holder['r']
+            mgmt_writer = mgmt_writer_holder['w']
+
+            # ------------------------------------------------------------------
+            # Step 4: Mock substation sends heartbeat to identify itself
+            # ------------------------------------------------------------------
             mgmt_writer.write(_heartbeat_frame(IDCODE))
             await mgmt_writer.drain()
 
-            # Step 3: Verify session was created
-            await asyncio.sleep(0.1)
-            self.assertIn(IDCODE, master.sessions, "Session should be created after heartbeat")
+            # Step 5: Verify session was created (keyed by real IDCODE after heartbeat)
+            await asyncio.sleep(0.2)
+            self.assertIn(IDCODE, master.sessions, "Session should be keyed by IDCODE after heartbeat")
             session = master.sessions[IDCODE]
 
-            # Step 4: Master requests CFG-1
+            # ------------------------------------------------------------------
+            # Step 6: Master requests CFG-1
+            # ------------------------------------------------------------------
             master.send_command("request_cfg1", idcode=IDCODE)
 
-            # Step 5: Mock substation reads the SEND_CFG1 command and verifies it
+            # Step 7: Mock substation reads the SEND_CFG1 command and verifies it
             raw = await asyncio.wait_for(read_frame(mgmt_reader), timeout=2)
             cmd_frame = FrameParser.parse(raw)
             self.assertIsInstance(cmd_frame, CommandFrame)
             self.assertEqual(cmd_frame.cmd, Cmd.SEND_CFG1)
 
-            # Step 6: Mock substation sends CFG-1
+            # Step 8: Mock substation sends CFG-1
             mgmt_writer.write(_cfg1_frame(IDCODE))
             await mgmt_writer.drain()
 
-            # Step 7: Verify master received CFG-1
-            await asyncio.sleep(0.5)
+            # Step 9: Verify master received CFG-1
+            await asyncio.sleep(0.3)
             self.assertIsNotNone(session.cfg1, "Master should have received CFG-1")
             self.assertEqual(session.cfg1.annmr, 2)
 
             # ------------------------------------------------------------------
-            # Step 8: Mock substation connects data pipe
+            # Step 10: Set cfg2 so master can parse data frames correctly
             # ------------------------------------------------------------------
-            data_reader, data_writer = await asyncio.open_connection("127.0.0.1", data_port)
-
-            # Step 9: Master needs cfg2 set to parse data frames correctly.
-            # Copy cfg1 as cfg2 so the master knows the channel layout.
             cfg1 = session.cfg1
             from protocol.frames import ConfigFrame as CF
             session.cfg2 = CF(
@@ -142,12 +167,17 @@ class TestE2ESmokeTest(unittest.IsolatedAsyncioTestCase):
                 digunit=list(cfg1.digunit), fnom=cfg1.fnom, period=cfg1.period,
             )
 
-            # Step 10: Send a data frame (first frame on data pipe triggers _handle_data_connection)
+            # ------------------------------------------------------------------
+            # Step 11: Mock substation connects to master's data port
+            # ------------------------------------------------------------------
+            data_reader, data_writer = await asyncio.open_connection("127.0.0.1", data_port)
+
+            # Step 12: Send a data frame
             analog_values = [100, 200]
             data_writer.write(_data_frame(IDCODE, analog_values))
             await data_writer.drain()
 
-            # Step 11: Verify data_frame event was emitted with correct analog values
+            # Step 13: Verify data_frame event was emitted with correct analog values
             await asyncio.sleep(0.3)
 
             data_events = []
@@ -163,9 +193,12 @@ class TestE2ESmokeTest(unittest.IsolatedAsyncioTestCase):
             self.assertIsInstance(received_frame, DataFrame)
             self.assertEqual(received_frame.analog, analog_values)
 
-            # Cleanup writers
+            # Cleanup
+            mgmt_done_event.set()
             data_writer.close()
             mgmt_writer.close()
 
         finally:
+            mock_mgmt_server.close()
+            await mock_mgmt_server.wait_closed()
             await master.stop()

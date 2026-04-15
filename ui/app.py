@@ -118,17 +118,16 @@ class App:
                               bg='#d8d8d8', fg=FG, anchor=tk.W, padx=5)
         status_bar.pack(fill=tk.X, padx=5, pady=(0, 5))
 
-    def _start_server(self, mgmt_port: int, data_port: int):
+    def _start_server(self, data_port: int):
         """Start the asyncio backend in a background thread."""
         self.master_station = MasterStation(
             event_queue=self.event_queue,
-            mgmt_port=mgmt_port,
             data_port=data_port,
         )
         self._loop = asyncio.new_event_loop()
         self._thread = threading.Thread(target=self._run_loop, daemon=True)
         self._thread.start()
-        self.status_var.set(f"\u670d\u52a1\u8fd0\u884c\u4e2d - \u7ba1\u7406:{mgmt_port} \u6570\u636e:{data_port}")
+        self.status_var.set(f"\u670d\u52a1\u8fd0\u884c\u4e2d - \u6570\u636e\u7aef\u53e3:{data_port}")
 
     def _run_loop(self):
         asyncio.set_event_loop(self._loop)
@@ -171,6 +170,10 @@ class App:
         elif action == "auto_handshake":
             period = kwargs.get("period")
             self.master_station.send_command("auto_handshake", idcode=idcode, period=period)
+        elif action == "connect":
+            host = kwargs.get("host", "")
+            port = kwargs.get("port", 8000)
+            self.master_station.send_command("connect", host=host, port=port)
 
     def _on_station_selected(self, _event=None):
         """When user selects a station, update config and data panels."""

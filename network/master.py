@@ -1,4 +1,4 @@
-"""MasterStation: asyncio TCP servers for management and data pipes."""
+"""MasterStation: master=client for management pipe, master=server for data pipe."""
 from __future__ import annotations
 import asyncio
 import logging
@@ -24,16 +24,13 @@ class MasterStation:
     def __init__(self, event_queue: queue.Queue, mgmt_port: int = 8000,
                  data_port: int = 8001, heartbeat_interval: float = 30.0):
         self.event_queue = event_queue
-        self.mgmt_port = mgmt_port
+        self.mgmt_port = mgmt_port   # kept for reference / backward compat; not listened on
         self.data_port = data_port
         self.heartbeat_interval = heartbeat_interval
 
         self.sessions: dict[str, SubStationSession] = {}
-        # Pending connections waiting for pairing (keyed by IP for V2, idcode for V3)
-        self._pending_mgmt: dict[str, SubStationSession] = {}
         self._pending_data: dict[str, tuple[asyncio.StreamReader, asyncio.StreamWriter, str]] = {}
 
-        self._mgmt_server: Optional[asyncio.Server] = None
         self._data_server: Optional[asyncio.Server] = None
         self._cmd_queue: asyncio.Queue = asyncio.Queue()
         self._running = False
@@ -44,18 +41,17 @@ class MasterStation:
         self._cmd_queue.put_nowait((cmd_type, kwargs))
 
     async def start(self):
-        """Start management and data TCP servers."""
+        """Start data TCP server (master listens for data pipe connections from substations)."""
         self._running = True
-        self._mgmt_server = await asyncio.start_server(
-            self._handle_mgmt_connection, "0.0.0.0", self.mgmt_port
-        )
         self._data_server = await asyncio.start_server(
             self._handle_data_connection, "0.0.0.0", self.data_port
         )
+        # Update data_port in case port=0 was used (auto-assign)
+        self.data_port = self._data_server.sockets[0].getsockname()[1]
         self._tasks.append(asyncio.create_task(self._command_loop()))
         self._tasks.append(asyncio.create_task(self._heartbeat_loop()))
-        self._emit("server_started", mgmt_port=self.mgmt_port, data_port=self.data_port)
-        logger.info(f"MasterStation started on mgmt:{self.mgmt_port} data:{self.data_port}")
+        self._emit("server_started", data_port=self.data_port)
+        logger.info(f"MasterStation started, data server on port {self.data_port}")
 
     async def stop(self):
         """Stop servers and close all sessions."""
@@ -63,79 +59,86 @@ class MasterStation:
         for task in self._tasks:
             task.cancel()
         self._tasks.clear()
-        if self._mgmt_server:
-            self._mgmt_server.close()
-            await self._mgmt_server.wait_closed()
         if self._data_server:
             self._data_server.close()
             await self._data_server.wait_closed()
         for session in list(self.sessions.values()):
             session.close()
         self.sessions.clear()
-        self._pending_mgmt.clear()
         self._pending_data.clear()
         self._emit("server_stopped")
         logger.info("MasterStation stopped")
 
-    # --- Connection Handlers ---
+    # --- Outbound management connection (master → substation) ---
 
-    async def _handle_mgmt_connection(self, reader: asyncio.StreamReader,
-                                       writer: asyncio.StreamWriter):
-        """Handle a new management pipe connection."""
-        peer = writer.get_extra_info("peername")
-        peer_ip = peer[0] if peer else "unknown"
-        logger.info(f"Management connection from {peer_ip}")
+    async def connect_to_substation(self, host: str, mgmt_port: int):
+        """Connect to a substation's management port (master is TCP client)."""
+        try:
+            reader, writer = await asyncio.open_connection(host, mgmt_port)
+        except Exception as e:
+            logger.error(f"Failed to connect to {host}:{mgmt_port}: {e}")
+            self._emit("error", idcode="", error=f"连接子站失败 {host}:{mgmt_port}: {e}")
+            return
+
+        # Use temporary idcode until first frame reveals real one
+        tmp_id = f"{host}:{mgmt_port}"
+        session = SubStationSession(
+            idcode=tmp_id, version=0, peer_ip=host,
+            peer_host=host, peer_mgmt_port=mgmt_port,
+        )
+        session.mgmt_reader = reader
+        session.mgmt_writer = writer
+        self.sessions[tmp_id] = session
+        self._emit("session_created", idcode=tmp_id, peer_ip=host)
+        logger.info(f"Management pipe connected to {host}:{mgmt_port}")
+
+        # Start reading management frames in background
+        self._tasks.append(asyncio.create_task(self._mgmt_read_loop(session)))
+
+    async def _mgmt_read_loop(self, session: SubStationSession):
+        """Read frames from an outbound management connection (master=client side)."""
+        reader = session.mgmt_reader
+        tmp_id = session.idcode  # may be "host:port" initially
 
         try:
-            # Read first frame to identify substation
-            frame_data = await self._read_frame(reader)
-            frame = FrameParser.parse(frame_data)
-            version = frame.version
-
-            if isinstance(frame, (CommandFrame, ConfigFrame)):
-                idcode = frame.idcode
-            else:
-                logger.warning(f"Unexpected first frame type on mgmt pipe: {type(frame)}")
-                writer.close()
-                return
-
-            # Find or create session
-            session = self._get_or_create_session(idcode, peer_ip, version)
-            session.mgmt_reader = reader
-            session.mgmt_writer = writer
-            session.version = version
-
-            self._emit("mgmt_connected", idcode=idcode, peer_ip=peer_ip)
-
-            # Process the first frame
-            await self._process_mgmt_frame(session, frame, frame_data)
-
-            # Continue reading management frames
             while self._running and not reader.at_eof():
                 try:
                     frame_data = await self._read_frame(reader)
                     frame = FrameParser.parse(frame_data)
-                    await self._process_mgmt_frame(session, frame, frame_data)
-                except ParseError as e:
-                    self._emit("parse_error", idcode=idcode, error=str(e))
                 except asyncio.IncompleteReadError:
                     break
+                except ParseError as e:
+                    self._emit("parse_error", idcode=session.idcode, error=str(e))
+                    continue
 
-        except asyncio.IncompleteReadError:
-            pass
+                # If this is the first real frame, update idcode from frame
+                if isinstance(frame, (CommandFrame, ConfigFrame)):
+                    real_id = frame.idcode
+                    if real_id and real_id != session.idcode:
+                        # Re-key the session under real idcode
+                        old_id = session.idcode
+                        session.idcode = real_id
+                        if old_id in self.sessions:
+                            del self.sessions[old_id]
+                        self.sessions[real_id] = session
+                        if session.version == 0:
+                            session.version = frame.version
+                        self._emit("session_created", idcode=real_id, peer_ip=session.peer_ip)
+
+                await self._process_mgmt_frame(session, frame, frame_data)
+
         except Exception as e:
-            logger.error(f"Management connection error: {e}")
+            logger.error(f"Management read loop error: {e}")
         finally:
-            if not writer.is_closing():
+            writer = session.mgmt_writer
+            if writer and not writer.is_closing():
                 writer.close()
-            # Find session by writer and mark mgmt disconnected
-            for s in self.sessions.values():
-                if s.mgmt_writer is writer:
-                    s.mgmt_writer = None
-                    if not s.data_connected:
-                        s.state = SessionState.DISCONNECTED
-                        self._emit("session_disconnected", idcode=s.idcode)
-                    break
+            session.mgmt_writer = None
+            if not session.data_connected:
+                session.state = SessionState.DISCONNECTED
+                self._emit("session_disconnected", idcode=session.idcode)
+
+    # --- Inbound data connection (substation → master) ---
 
     async def _handle_data_connection(self, reader: asyncio.StreamReader,
                                        writer: asyncio.StreamWriter):
@@ -317,7 +320,11 @@ class MasterStation:
             idcode = kwargs.get("idcode", "")
             session = self.sessions.get(idcode)
 
-            if cmd_type == "request_cfg1" and session:
+            if cmd_type == "connect":
+                host = kwargs.get("host", "")
+                port = kwargs.get("port", 7000)
+                await self.connect_to_substation(host, port)
+            elif cmd_type == "request_cfg1" and session:
                 await self._send_command(session, Cmd.SEND_CFG1)
             elif cmd_type == "send_cfg2_cmd" and session:
                 await self._send_command(session, Cmd.SEND_CFG2_CMD)

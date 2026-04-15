@@ -22,6 +22,8 @@ class SubStationSession:
     idcode: str
     version: int = 0                    # Detected from first frame
     peer_ip: str = ""                   # Remote IP for V2 pairing
+    peer_host: str = ""                 # Substation IP (management pipe target)
+    peer_mgmt_port: int = 0             # Substation management port
     state: SessionState = SessionState.CONNECTED
 
     # Asyncio streams (set when pipes connect)
