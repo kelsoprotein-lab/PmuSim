@@ -34,6 +34,12 @@ def _force_light_theme(root):
     root.option_add('*Text.Background', ENTRY_BG)
     root.configure(bg=BG)
 
+    # Tk 8.6+ on macOS: force light appearance
+    try:
+        root.tk.call('tk::mac::setAppearance', 'light')
+    except tk.TclError:
+        pass  # Tk 8.5 doesn't support this
+
     # ttk style (affects all ttk.* widgets)
     style = ttk.Style()
     style.theme_use('clam')
