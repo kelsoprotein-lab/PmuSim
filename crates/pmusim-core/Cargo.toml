@@ -1,0 +1,11 @@
+[package]
+name = "pmusim-core"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+thiserror = "2"
+encoding_rs = "0.8"
+
+[dev-dependencies]
+hex = "0.4"
