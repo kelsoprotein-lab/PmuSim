@@ -1,6 +1,6 @@
 # PmuSim
 
-跨平台 PMU（相量测量装置）主站模拟器。支持 **Q/GDW 131-2006 (V2)** 和 **GB/T 26865.2-2011 (V3)** 两个协议版本。基于 Python + Tkinter 构建，零第三方依赖。
+跨平台 PMU（相量测量装置）主站模拟器。支持 **Q/GDW 131-2006 (V2)** 和 **GB/T 26865.2-2011 (V3)** 两个协议版本。基于 Rust + Tauri 2 + Vue 3 构建。
 
 [English](README.md)
 
@@ -69,12 +69,11 @@
 
 ## 技术栈
 
-- **语言**: Python 3.9+（仅标准库）
-- **GUI**: Tkinter / ttk
-- **网络**: asyncio TCP (StreamReader/StreamWriter)
-- **线程模型**: asyncio 事件循环在后台线程，Tkinter mainloop 在主线程
-- **CRC**: CRC-CCITT（多项式 0x1021，初始值 0x0000）
-- **打包**: PyInstaller
+- **后端**: Rust + [tokio](https://tokio.rs/)（异步 TCP 网络）
+- **前端**: Vue 3 + TypeScript
+- **框架**: [Tauri 2](https://tauri.app/)（桌面应用）
+- **协议**: CRC-CCITT（多项式 0x1021，初始值 0x0000）
+- **编码**: GBK 字符串支持（[encoding_rs](https://crates.io/crates/encoding_rs)）
 
 ## 项目结构
 
@@ -111,32 +110,28 @@ PmuSim/
 
 ### 前置条件
 
-- Python 3.9+
-- Tkinter（通常自带；macOS 下使用 `brew install python-tk@3.12` 获取 Tk 8.6+）
+- [Rust](https://rustup.rs/)（stable）
+- [Node.js](https://nodejs.org/)（v18+）
+- [Tauri CLI](https://tauri.app/start/prerequisites/)
 
-### 运行
-
-```bash
-python3 main.py
-```
-
-macOS 暗色模式下，使用 Homebrew Python 以确保正常渲染：
+### 开发模式
 
 ```bash
-/opt/homebrew/bin/python3.12 main.py
+cd frontend && npm install
+cd ../crates/pmusim-app && cargo tauri dev
 ```
 
 ### 运行测试
 
 ```bash
-python3 -m unittest discover tests -v
+cargo test --workspace
 ```
 
-### 构建可执行文件
+### 构建
 
 ```bash
-pip install pyinstaller
-pyinstaller --onefile --windowed --name PmuSim main.py
+cd frontend && npm run build
+cd ../crates/pmusim-app && cargo tauri build
 ```
 
 ## 许可证

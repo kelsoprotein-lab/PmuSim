@@ -1,6 +1,6 @@
 # PmuSim
 
-Cross-platform PMU (Phasor Measurement Unit) master station simulator. Supports both **Q/GDW 131-2006 (V2)** and **GB/T 26865.2-2011 (V3)** protocol versions. Built with Python and Tkinter — zero third-party dependencies.
+Cross-platform PMU (Phasor Measurement Unit) master station simulator. Supports both **Q/GDW 131-2006 (V2)** and **GB/T 26865.2-2011 (V3)** protocol versions. Built with Rust, Tauri 2, and Vue 3.
 
 [中文文档](README_CN.md)
 
@@ -69,74 +69,76 @@ Cross-platform PMU (Phasor Measurement Unit) master station simulator. Supports 
 
 ## Tech Stack
 
-- **Language**: Python 3.9+ (standard library only)
-- **GUI**: Tkinter / ttk
-- **Networking**: asyncio TCP (StreamReader/StreamWriter)
-- **Threading**: asyncio event loop in background thread, Tkinter mainloop in main thread
-- **CRC**: CRC-CCITT (polynomial 0x1021, init 0x0000)
-- **Packaging**: PyInstaller
+- **Backend**: Rust + [tokio](https://tokio.rs/) (async TCP networking)
+- **Frontend**: Vue 3 + TypeScript
+- **Framework**: [Tauri 2](https://tauri.app/) (desktop application)
+- **Protocol**: CRC-CCITT (polynomial 0x1021, init 0x0000)
+- **Encoding**: GBK string support via [encoding_rs](https://crates.io/crates/encoding_rs)
 
 ## Project Structure
 
 ```
 PmuSim/
-├── main.py                  # Entry point with Tk version check
-├── protocol/
-│   ├── constants.py         # SYNC, FrameType, Cmd, DEFAULT_PORTS
-│   ├── crc16.py             # CRC-CCITT implementation
-│   ├── frames.py            # CommandFrame, ConfigFrame, DataFrame
-│   ├── parser.py            # Binary → frame objects (V2/V3)
-│   └── builder.py           # Frame objects → binary (V2/V3)
-├── network/
-│   ├── session.py           # SubStationSession state machine
-│   └── master.py            # MasterStation: TCP client/server, command loop
-├── ui/
-│   ├── app.py               # Main App window, event dispatcher
-│   ├── toolbar.py           # Start/Stop, protocol selector, port config
-│   ├── station_list.py      # Substation list, connect panel, action buttons
-│   ├── config_panel.py      # CFG-1/CFG-2 viewer
-│   ├── data_panel.py        # Real-time data table
-│   └── log_panel.py         # Communication log with hex dump
-├── utils/
-│   └── time_utils.py        # SOC ↔ Beijing time, FRACSEC conversion
-└── tests/
-    ├── test_crc16.py         # CRC against 12 protocol document examples
-    ├── test_parser.py        # V2/V3 command, config, data frame parsing
-    ├── test_builder.py       # Round-trip build → parse verification
-    ├── test_time_utils.py    # Time conversion tests
-    └── test_e2e.py           # End-to-end: mock substation ↔ master station
+├── Cargo.toml                       # Workspace root
+├── crates/
+│   ├── pmusim-core/                 # Protocol library (no Tauri dependency)
+│   │   └── src/
+│   │       ├── error.rs             # PmuError enum
+│   │       ├── time_utils.rs        # SOC/FRACSEC conversion
+│   │       └── protocol/
+│   │           ├── constants.rs     # SYNC, FrameType, Cmd, ProtocolVersion
+│   │           ├── crc16.rs         # CRC-CCITT (poly=0x1021, init=0x0000)
+│   │           ├── frame.rs         # CommandFrame, ConfigFrame, DataFrame
+│   │           ├── parser.rs        # bytes → Frame (V2/V3)
+│   │           └── builder.rs       # Frame → bytes (V2/V3)
+│   └── pmusim-app/                  # Tauri desktop application
+│       └── src/
+│           ├── main.rs              # Tauri app entry
+│           ├── commands.rs          # Tauri IPC command handlers
+│           ├── events.rs            # PmuEvent → frontend
+│           ├── state.rs             # AppState
+│           └── network/
+│               ├── master.rs        # MasterStation (tokio TCP)
+│               └── session.rs       # SubStationSession state machine
+└── frontend/                        # Vue 3 SPA
+    └── src/
+        ├── App.vue                  # Root layout
+        ├── types/index.ts           # TypeScript interfaces
+        ├── composables/             # usePmuEvents, useSessions, useCommLog
+        └── components/
+            ├── ToolbarPanel.vue     # Start/Stop, protocol, port
+            ├── StationListPanel.vue # Station list, connect, actions
+            ├── ConfigTab.vue        # CFG viewer
+            ├── DataTab.vue          # Real-time data table
+            └── LogTab.vue           # Communication log + hex dump
 ```
 
 ## Development
 
 ### Prerequisites
 
-- Python 3.9+
-- Tkinter (usually bundled; on macOS use `brew install python-tk@3.12` for Tk 8.6+)
+- [Rust](https://rustup.rs/) (stable)
+- [Node.js](https://nodejs.org/) (v18+)
+- [Tauri CLI](https://tauri.app/start/prerequisites/)
 
-### Run
-
-```bash
-python3 main.py
-```
-
-On macOS with dark mode, use Homebrew Python for proper rendering:
+### Dev Mode
 
 ```bash
-/opt/homebrew/bin/python3.12 main.py
+cd frontend && npm install
+cd ../crates/pmusim-app && cargo tauri dev
 ```
 
 ### Run Tests
 
 ```bash
-python3 -m unittest discover tests -v
+cargo test --workspace
 ```
 
-### Build Executable
+### Build
 
 ```bash
-pip install pyinstaller
-pyinstaller --onefile --windowed --name PmuSim main.py
+cd frontend && npm run build
+cd ../crates/pmusim-app && cargo tauri build
 ```
 
 ## License

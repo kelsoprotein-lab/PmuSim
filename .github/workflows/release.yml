@@ -6,7 +6,7 @@ on:
       - 'v*'
 
 jobs:
-  build:
+  release:
     permissions:
       contents: write
     strategy:
@@ -14,84 +14,56 @@ jobs:
       matrix:
         include:
           - platform: macos-latest
-            os_name: macos-arm64
-            asset_ext: .tar.gz
+            args: '--target aarch64-apple-darwin'
+          - platform: macos-latest
+            args: '--target x86_64-apple-darwin'
           - platform: ubuntu-22.04
-            os_name: linux-x64
-            asset_ext: .tar.gz
+            args: ''
           - platform: windows-latest
-            os_name: windows-x64
-            asset_ext: .zip
+            args: ''
     runs-on: ${{ matrix.platform }}
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Python
-        uses: actions/setup-python@v5
+      - name: Install Node.js
+        uses: actions/setup-node@v4
         with:
-          python-version: '3.12'
+          node-version: 22
 
-      - name: Install PyInstaller
-        run: pip install pyinstaller
-
-      - name: Build executable (Unix)
-        if: runner.os != 'Windows'
-        run: >
-          pyinstaller --noconfirm --onefile --windowed
-          --name PmuSim
-          --add-data "protocol:protocol"
-          --add-data "network:network"
-          --add-data "ui:ui"
-          --add-data "utils:utils"
-          --hidden-import tkinter
-          --hidden-import tkinter.ttk
-          main.py
-
-      - name: Build executable (Windows)
-        if: runner.os == 'Windows'
-        shell: bash
-        run: >
-          pyinstaller --noconfirm --onefile --windowed
-          --name PmuSim
-          --add-data "protocol;protocol"
-          --add-data "network;network"
-          --add-data "ui;ui"
-          --add-data "utils;utils"
-          --hidden-import tkinter
-          --hidden-import tkinter.ttk
-          main.py
-
-      - name: Package (Unix)
-        if: matrix.os_name != 'windows-x64'
-        run: |
-          cd dist
-          tar czf PmuSim-${{ matrix.os_name }}.tar.gz PmuSim*
-          ls -la
-
-      - name: Package (Windows)
-        if: matrix.os_name == 'windows-x64'
-        shell: pwsh
-        run: |
-          cd dist
-          Compress-Archive -Path PmuSim.exe -DestinationPath PmuSim-${{ matrix.os_name }}.zip
-          dir
-
-      - name: Upload release asset
-        uses: softprops/action-gh-release@v2
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
         with:
-          files: dist/PmuSim-${{ matrix.os_name }}${{ matrix.asset_ext }}
-          body: |
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Install Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm install
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+      - name: Build and release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: crates/pmusim-app
+          tagName: ${{ github.ref_name }}
+          releaseName: 'PmuSim ${{ github.ref_name }}'
+          releaseBody: |
             ## Downloads
 
             **PmuSim** — PMU 主站模拟器 / PMU Master Station Simulator
 
-            | Platform | Download |
-            |----------|----------|
-            | macOS (Apple Silicon) | `PmuSim-macos-arm64.tar.gz` |
-            | Linux (x64) | `PmuSim-linux-x64.tar.gz` |
-            | Windows (x64) | `PmuSim-windows-x64.zip` |
-          draft: false
+            See the assets below to download for your platform.
+          releaseDraft: false
           prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          args: ${{ matrix.args }}
