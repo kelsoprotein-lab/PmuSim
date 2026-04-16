@@ -167,10 +167,16 @@ fn parse_config(data: &[u8], version: ProtocolVersion, frame_type: FrameType) ->
     off += 2;
     let period = read_u16(data, off);
 
+    // V2: primary idcode comes from per-PMU field; V3: from DC_IDCODE in header
+    let primary_idcode = match version {
+        ProtocolVersion::V2 => pmu_idcode.clone(),
+        ProtocolVersion::V3 => idcode,
+    };
+
     Ok(Frame::Config(ConfigFrame {
         version,
         cfg_type,
-        idcode,
+        idcode: primary_idcode,
         soc,
         fracsec,
         d_frame,
